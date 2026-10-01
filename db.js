@@ -1,8 +1,7 @@
-// db.js
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 
-const db = new Database(process.env.DB_PATH || 'braggai.db');
-db.pragma('journal_mode = WAL');
+const db = new DatabaseSync(process.env.DB_PATH || 'braggai.db');
+db.exec('PRAGMA journal_mode = WAL');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
