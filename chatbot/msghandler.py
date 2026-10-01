@@ -3,12 +3,14 @@ from supabase import create_client
 from groq import Groq
 import os
 
+SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+GROQ_KEY = os.environ["GROQ_KEY"]
 supabase = create_client(
     "https://abmrujvzncbhftliwztj.supabase.co",
-    "sb_secret_fBfMmnQ2TVCqXNVvOSlOQQ_mUQDq7c_"
+    SUPABASE_KEY
 )
 
-groq = Groq(api_key="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")
+groq = Groq(api_key=GROQ_KEY)
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 

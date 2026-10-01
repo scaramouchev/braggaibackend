@@ -4,6 +4,7 @@ from sentence_transformers import SentenceTransformer
 from supabase import create_client
 from urllib.parse import urljoin
 import hashlib
+import os
 
 supabase = create_client(
     "https://abmrujvzncbhftliwztj.supabase.co",
@@ -72,8 +73,8 @@ response = session.get("https://famu.edu")
 scraper = bs4.BeautifulSoup(response.content,'html.parser')
 lis = scraper.select('li[class="nav-accordion__item"]')
 socials = scraper.select('ul[class="social"] li a[href]')
-API_KEY = "new1_0d7d8081e97c44ecb8c8d14fa235288d"
-INSTA_API_KEY = "4d110e8a-f86e-4328-9174-b50c8c9a50de"
+API_KEY = os.environ["API_KEY"]
+INSTA_API_KEY = os.environ("INSTA_API_KEY")
 headers = {
     "x-api-key": API_KEY
 }
