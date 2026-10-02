@@ -2,24 +2,24 @@ from sentence_transformers import SentenceTransformer
 from supabase import create_client
 from groq import Groq
 import os
+from dotenv import load_dotenv
 
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]
-GROQ_KEY = os.environ["GROQ_KEY"]
+load_dotenv()
 supabase = create_client(
     "https://abmrujvzncbhftliwztj.supabase.co",
-    SUPABASE_KEY
+    os.environ.get("SUPABASE_API_KEY")
 )
 
-groq = Groq(api_key=GROQ_KEY)
+groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 question = "What scholarships does FAMU offer?"
 
-# 1. Turn question into a vector/embedding
+
 query_embedding = model.encode(question).tolist()
 
-# 2. find relevant FAMU info
+
 result = supabase.rpc(
     "match_documents",
     {
@@ -28,13 +28,14 @@ result = supabase.rpc(
     }
 ).execute()
 
-# 3. Combine retrieved chunks
+
 context = "\n\n".join(
     row["content"]
     for row in result.data
 )
 
-# 4. ask Groq to answer the given question
+print("Supabase key loaded:", bool(os.environ.get("SUPABASE_API_KEY")))
+print("Groq key loaded:", bool(os.environ.get("GROQ_API_KEY")))
 
 response = groq.chat.completions.create(
     model="openai/gpt-oss-20b",
@@ -68,3 +69,4 @@ QUESTION:
 )
 
 responsemsg = response.choices[0].message.content
+print(responsemsg)

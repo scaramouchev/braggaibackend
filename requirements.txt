@@ -3,3 +3,4 @@ requests
 sentence-transformers
 supabase
 groq
+python-dotenv

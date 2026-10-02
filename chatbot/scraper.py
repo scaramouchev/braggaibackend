@@ -5,10 +5,13 @@ from supabase import create_client
 from urllib.parse import urljoin
 import hashlib
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 supabase = create_client(
     "https://abmrujvzncbhftliwztj.supabase.co",
-    "sb_secret_fBfMmnQ2TVCqXNVvOSlOQQ_mUQDq7c_"
+    os.environ.get("SUPABASE_API_KEY")
 )
 
 seen_urls = set()
@@ -32,12 +35,9 @@ def ingest_page(title, source_url, text):
         .execute()
 
     if existing.data and existing.data[0]["content_hash"] == content_hash:
-        print("Unchanged, skipping:", source_url)
         return
 
     if existing.data:
-        print("Changed, updating:", source_url)
-
         supabase.table("documents") \
             .delete() \
             .eq("source_url", source_url) \
@@ -73,10 +73,10 @@ response = session.get("https://famu.edu")
 scraper = bs4.BeautifulSoup(response.content,'html.parser')
 lis = scraper.select('li[class="nav-accordion__item"]')
 socials = scraper.select('ul[class="social"] li a[href]')
-API_KEY = os.environ["API_KEY"]
-INSTA_API_KEY = os.environ("INSTA_API_KEY")
+X_API_KEY = os.environ.get("X_API_KEY")
+INSTA_API_KEY = os.environ.get("INSTA_API_KEY")
 headers = {
-    "x-api-key": API_KEY
+    "x-api-key": X_API_KEY
 }
 LAST_CHECKED_TIME = datetime.now(timezone.utc) - timedelta(hours=48)
 
@@ -114,7 +114,7 @@ def check_for_new_tweets(TARGET_ACCOUNT):
 
     # Headers with API key
     headers = {
-        "X-API-Key": API_KEY
+        "X-API-Key": X_API_KEY
     }
 
     # Make the request and handle pagination
@@ -219,12 +219,7 @@ for li in lis:
 
 
 
-print("Socials:")
 
-instagram = "hello"
-facebook = "hello"
-x = "hello"
-tiktok = "hello"
 
 for social in socials:
     url = social["href"]
