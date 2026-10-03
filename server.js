@@ -30,7 +30,7 @@ const authLimiter = rateLimit({
 
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: 10,
   message: { error: 'Slow down a bit.' },
 });
 
