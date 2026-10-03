@@ -4,3 +4,5 @@ sentence-transformers
 supabase
 groq
 python-dotenv
+uvicorn
+fastapi

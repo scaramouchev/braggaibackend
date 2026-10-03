@@ -1,21 +1,30 @@
 import bs4,requests,time
 from datetime import datetime, timedelta, timezone
 from sentence_transformers import SentenceTransformer
-from supabase import create_client
 from urllib.parse import urljoin
 import hashlib
 import os
+from supabase_client import supabase
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 load_dotenv()
 
-supabase = create_client(
-    "https://abmrujvzncbhftliwztj.supabase.co",
-    os.environ.get("SUPABASE_API_KEY")
+X_API_KEY = os.environ.get("X_API_KEY")
+INSTA_API_KEY = os.environ.get("INSTA_API_KEY")
+
+status = supabase.table("scraper_status") \
+    .select("last_checked_time") \
+    .eq("id", 1) \
+    .single() \
+    .execute()
+
+LAST_CHECKED_TIME = datetime.fromisoformat(
+    status.data["last_checked_time"].replace("Z", "+00:00")
 )
 
-seen_urls = set()
 model = SentenceTransformer("all-MiniLM-L6-v2")
+
 def chunk_text(text, chunk_size=500):
     words = text.split()
     chunks = []
@@ -25,7 +34,7 @@ def chunk_text(text, chunk_size=500):
 
     return chunks
 
-def ingest_page(title, source_url, text):
+def ingest_page(title, source_url, text, model):
     content_hash = hashlib.sha256(text.encode()).hexdigest()
 
     existing = supabase.table("documents") \
@@ -56,7 +65,36 @@ def ingest_page(title, source_url, text):
             "embedding": embedding
         }).execute()
 
-def ingest_tweet(tweet, username):
+def ingest_socials(socials, model):
+    lines = []
+    seen = set()
+
+    for s in socials:
+        href = urljoin("https://famu.edu", s["href"])
+        if href in seen:
+            continue
+        seen.add(href)
+
+        platform = urlparse(href).netloc.replace("www.", "")
+        lines.append(f"- {platform}: {href}")
+
+    if not lines:
+        return
+
+    text = (
+        "FAMU official social media accounts. "
+        "Follow Florida A&M University (FAMU) on social media:\n"
+        + "\n".join(lines)
+    )
+
+    ingest_page(
+        title="FAMU Social Media",
+        source_url="https://famu.edu/#social-links",
+        text=text,
+        model=model
+    )
+
+def ingest_tweet(tweet, username, model):
     text = tweet["text"]
     tweet_id = tweet["id"]
 
@@ -65,21 +103,9 @@ def ingest_tweet(tweet, username):
     ingest_page(
         title=f"X post by @{username}",
         source_url=source_url,
-        text=text
+        text=text,
+        model=model
     )
-
-session = requests.Session()
-response = session.get("https://famu.edu")
-scraper = bs4.BeautifulSoup(response.content,'html.parser')
-lis = scraper.select('li[class="nav-accordion__item"]')
-socials = scraper.select('ul[class="social"] li a[href]')
-X_API_KEY = os.environ.get("X_API_KEY")
-INSTA_API_KEY = os.environ.get("INSTA_API_KEY")
-headers = {
-    "x-api-key": X_API_KEY
-}
-LAST_CHECKED_TIME = datetime.now(timezone.utc) - timedelta(hours=48)
-
 
 #not my code, modified to fit our requirements
 def check_for_new_tweets(TARGET_ACCOUNT):
@@ -91,19 +117,12 @@ def check_for_new_tweets(TARGET_ACCOUNT):
     until_time = datetime.now(timezone.utc)
     since_time = LAST_CHECKED_TIME
 
-    #if until_time - LAST_CHECKED_TIME < timedelta(hours=24):
-        #do something here
-        #return
-
     # Construct the query — time bounds go inline as advanced-search operators.
     query = (
         f"from:{TARGET_ACCOUNT} include:nativeretweets "
         f"since_time:{int(since_time.timestamp())} until_time:{int(until_time.timestamp())}"
     )
-    # Please refer to this document for detailed advanced search syntax.
-    # https://github.com/igorbrigadir/twitter-advanced-search
 
-    # API endpoint
     url = "https://api.twitterapi.io/twitter/tweet/advanced_search"
 
     # Request parameters
@@ -143,23 +162,22 @@ def check_for_new_tweets(TARGET_ACCOUNT):
             else:
                 break
         elif response.status_code == 429:
-            break
+            return
 
         else:
-            print(f"Error: {response.status_code} - {response.text}")
-            break
+            return
 
     # Process all collected tweets
     if all_tweets:
-        print(f"Found {len(all_tweets)} total tweets from {TARGET_ACCOUNT}!")
         for tweet in all_tweets:
-            print(f"[{tweet['createdAt']}] {tweet['text']}")
-            ingest_tweet(tweet, TARGET_ACCOUNT)
-    else:
-        print(f"No new tweets from {TARGET_ACCOUNT} since last check.")
+            ingest_tweet(tweet, TARGET_ACCOUNT, model)
+        
 
-    # Update the last checked time
     LAST_CHECKED_TIME = until_time
+
+    supabase.table("scraper_status").update(
+        {"last_checked_time": until_time.isoformat()}
+    ).eq("id", 1).execute()
 
 def checkinstagram(HANDLE):
     response = requests.get(
@@ -175,63 +193,72 @@ def checkinstagram(HANDLE):
 
     print(response.json())
 
-for li in lis:
-    title = li.find("span", class_=False).get_text(strip=True)
-    print(title)
 
-    for link in li.select("a[href]"):
+def scrape():
+    seen_urls = set()
+    session = requests.Session()
+    response = session.get("https://famu.edu")
+    scraper = bs4.BeautifulSoup(response.content,'html.parser')
+    lis = scraper.select('li[class="nav-accordion__item"]')
+    socials = scraper.select('ul[class="social"] li a[href]')
 
-        source_url = urljoin("https://famu.edu", link["href"])
+    for li in lis:
+        title = li.find("span", class_=False).get_text(strip=True)
+        print(title)
 
-        if source_url in seen_urls:
+        for link in li.select("a[href]"):
+
+            source_url = urljoin("https://famu.edu", link["href"]).split("#")[0].rstrip("/")
+
+            if source_url in seen_urls:
+                continue
+
+            seen_urls.add(source_url)
+            try:
+                print("Fetching:", source_url, flush=True)
+
+                tempresponse = session.get(
+                    source_url,
+                    timeout=(5, 10)
+                )
+
+                tempresponse.raise_for_status()
+
+                tempscraper = bs4.BeautifulSoup(tempresponse.content, 'html.parser')
+
+                for element in tempscraper.select("nav, header, footer, script, style"):
+                    element.decompose()
+
+                text = tempscraper.get_text(" ", strip=True)
+
+                print("Fetched:", source_url, flush=True)
+
+            except requests.RequestException as e:
+                print(f"FAILED: {source_url}", flush=True)
+                print(f"Reason: {e}", flush=True)
+                continue
+
+            ingest_page(title,source_url,text,model)
+
+
+
+            print(link["href"])
+
+
+
+    ingest_socials(socials, model)
+
+    for social in socials:
+        url = social["href"]
+        print(url)
+        if "x.com/" in url:
+            username = url.split('/')[3]
+            check_for_new_tweets(username)
+        #elif "instagram.com/" in url:
+            #username = url.split('/')[3]
+            #checkinstagram(username)
+        else:
             continue
-
-        seen_urls.add(source_url)
-        try:
-            print("Fetching:", source_url, flush=True)
-
-            tempresponse = session.get(
-                source_url,
-                timeout=(5, 10)
-            )
-
-            tempresponse.raise_for_status()
-
-            tempscraper = bs4.BeautifulSoup(tempresponse.content, 'html.parser')
-
-            for element in tempscraper.select("nav, header, footer, script, style"):
-                element.decompose()
-
-            text = tempscraper.get_text(" ", strip=True)
-
-            print("Fetched:", source_url, flush=True)
-
-        except requests.RequestException as e:
-            print(f"FAILED: {source_url}", flush=True)
-            print(f"Reason: {e}", flush=True)
-            continue
-
-        ingest_page(title,source_url,text)
-
-
-
-        print(link["href"])
-
-
-
-
-
-for social in socials:
-    url = social["href"]
-    print(url)
-    if "x.com/" in url:
-        username = url.split('/')[3]
-        check_for_new_tweets(username)
-    #elif "instagram.com/" in url:
-        #username = url.split('/')[3]
-        #checkinstagram(username)
-    else:
-        continue
 
 
 

@@ -5,6 +5,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
+import chatRoutes from './routes/chat.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -27,7 +28,15 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Try again later.' },
 });
 
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { error: 'Slow down a bit.' },
+});
+
 app.use('/api/auth', authLimiter, authRoutes);
+
+app.use('/api/chat', chatLimiter, chatRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ ok: true });
