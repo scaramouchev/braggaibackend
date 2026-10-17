@@ -3,12 +3,14 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI,Request,HTTPException
 from .supabase_client import supabase
-from .scraper import scrape,model
+from .scraper import scrape
 from datetime import datetime, timedelta, timezone
+from .model import get_model
 
 load_dotenv()
 
 python_internal_key = os.environ.get("PYTHON_INTERNAL_KEY")
+
 
 
 
@@ -41,7 +43,7 @@ def sendMessage(message):
     question = message
 
 
-    query_embedding = model.encode(question).tolist()
+    query_embedding = get_model().encode(question).tolist()
 
 
     result = supabase.rpc(
