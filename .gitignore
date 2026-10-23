@@ -5,3 +5,4 @@ node_modules/
 *.db-wal
 cookies.txt
 .DS_Store
+.env

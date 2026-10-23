@@ -5,10 +5,9 @@ from supabase import create_client
 from urllib.parse import urljoin
 import hashlib
 import os
-
 supabase = create_client(
-    "https://abmrujvzncbhftliwztj.supabase.co",
-    "sb_secret_fBfMmnQ2TVCqXNVvOSlOQQ_mUQDq7c_"
+    os.environ["SUPABASE_URL"],
+    os.environ["SUPABASE_KEY"]
 )
 
 seen_urls = set()
