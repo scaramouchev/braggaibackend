@@ -1,5 +1,5 @@
 // server.js
-import 'dotenv/config';
+//import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -16,7 +16,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  origin: process.env.CLIENT_ORIGIN || 'http://127.0.0.1:5500',
   credentials: true,
 }));
 
@@ -28,8 +28,16 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Try again later.' },
 });
 
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Slow down a bit.' },
+});
+
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/chat', chatRoutes);
+
+app.use('/api/chat', chatLimiter, chatRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ ok: true });
