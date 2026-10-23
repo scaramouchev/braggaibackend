@@ -24,10 +24,12 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow curl/postman
+    console.log("🔍 Incoming browser origin received:", JSON.stringify(origin)); 
+    if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
+      console.log("❌ BLOCKED. Current allowedOrigins list:", allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
