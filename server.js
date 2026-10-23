@@ -1,5 +1,5 @@
 // server.js
-//import 'dotenv/config';
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -15,8 +15,21 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  process.env.CLIENT_ORIGIN
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://127.0.0.1:5500',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow curl/postman
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 
@@ -28,16 +41,8 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Try again later.' },
 });
 
-const chatLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: { error: 'Slow down a bit.' },
-});
-
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/chat', chatRoutes);
-
-app.use('/api/chat', chatLimiter, chatRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ ok: true });
