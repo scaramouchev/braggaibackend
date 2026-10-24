@@ -50,20 +50,30 @@ router.post('/signup', async (req, res) => {
 
   const normalizedEmail = String(email).trim().toLowerCase();
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+  const { data: existing, error: existingError } = await db
+    .from('users')
+    .select('id')
+    .eq('email', normalizedEmail)
+    .maybeSingle();
+
+  if (existingError) {
+    return res.status(500).json({ error: 'Database error.' });
+  }
   if (existing) {
     return res.status(409).json({ error: 'That email is already registered.' });
   }
 
   const password_hash = await bcrypt.hash(String(password), 12);
 
-  const info = db.prepare(
-    'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)'
-  ).run(String(name).trim(), normalizedEmail, password_hash);
+  const { data: user, error: insertError } = await db
+    .from('users')
+    .insert([{ name: String(name).trim(), email: normalizedEmail, password_hash }])
+    .select('id, name, email, role')
+    .single();
 
-  const user = db.prepare(
-    'SELECT id, name, email, role FROM users WHERE id = ?'
-  ).get(info.lastInsertRowid);
+  if (insertError) {
+    return res.status(500).json({ error: 'Could not create user.' });
+  }
 
   const token = signToken(user);
   res.cookie(COOKIE_NAME, token, cookieOptions);
@@ -78,9 +88,13 @@ router.post('/login', async (req, res) => {
   }
 
   const normalizedEmail = String(email).trim().toLowerCase();
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  const { data: user, error } = await db
+    .from('users')
+    .select('*')
+    .eq('email', normalizedEmail)
+    .maybeSingle();
 
-  if (!user) {
+  if (error || !user) {
     return res.status(401).json({ error: 'Email or password is incorrect.' });
   }
 
@@ -104,12 +118,14 @@ router.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare(
-    'SELECT id, name, email, role FROM users WHERE id = ?'
-  ).get(req.user.sub);
+router.get('/me', requireAuth, async (req, res) => {
+  const { data: user, error } = await db
+    .from('users')
+    .select('id, name, email, role')
+    .eq('id', req.user.sub)
+    .maybeSingle();
 
-  if (!user) {
+  if (error || !user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 

@@ -1,20 +1,13 @@
-import { DatabaseSync } from 'node:sqlite';
+import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
 
-const db = new DatabaseSync(process.env.DB_PATH || 'braggai.db');
-db.exec('PRAGMA journal_mode = WAL');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'STUDENT',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in environment');
+}
 
-  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-`);
+const db = createClient(supabaseUrl, supabaseServiceKey);
 
 export default db;
