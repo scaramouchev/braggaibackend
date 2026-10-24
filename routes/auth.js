@@ -14,8 +14,8 @@ const isProd = process.env.NODE_ENV === 'production';
 
 const cookieOptions = {
   httpOnly: true,
-  secure: isProd,
-  sameSite: 'lax',
+  secure: true,
+  sameSite: 'none',
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/',
 };
@@ -111,8 +111,8 @@ router.post('/login', async (req, res) => {
 router.post('/logout', (req, res) => {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
   });
   res.json({ ok: true });
